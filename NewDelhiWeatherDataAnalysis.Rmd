@@ -1,0 +1,243 @@
+---
+title: "Delhi weather"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+importing libraries
+```{r, echo=FALSE}
+library('plyr')
+```
+# BACKGROUND
+Over the past few decades climatologists have put a great deal of effort into understanding and predicting the climate data. They continuously analyze the data and suggest trends and patterns in climate and weather conditions of a region. These insights can be very beneficial in finding seasonal patterns and climate changes over time. The objective of this project is to analyze the weather of New Delhi, India over the past few years using time series analysis techniques. Delhi is a region of particular interest because of the rapid urbanization and development in the city. 
+
+The analysis aims to find weather patterns, temperature changes and other significant weather conditions in the city. Temperature changes directly relate to and indicate global warming, and hence the goal of this research is also to find out if the city has contributed or experienced global warming over the past few years. 
+
+Increasing urbanization, population, and economies have been witnessed to cause a huge impact on the environment, making it essential for data collection and timely analysis to make appropriate decisions for the future. Humans have had a considerable impact on the climate since industrialization resulting in increased warming on the planet. Finding Conveying these messages with accurate statistics puts more meaning to the grave situation we are in now, highlighting the alarming rate of climate change. The COP26 put forward the urgency to reach net zero emissions by mid-century by keeping 1.5 degrees within reach.
+
+There are a few researches that have been done in the past for different time intervals regarding the meteorological data analysis for Delhi, and one study shows the increasing average maximum temperature and decreasing minimum temperature over 1961-1990. [3][5]
+While another research by Surendra et. al. concluded that there is an increase in both the minimum and maximum temperatures over the 44 years’ time period that they analysed. [4]
+
+My analysis will find weather patterns, seasonality[1], and autocorrelation [5] from the data, using statistical tests and visualization techniques to represent the findings using bar plots and time series plots. The temperature analysis in my study will observe minimum and maximum temperature shifts if there are any, and if they relate to any of other studies that have been published before.
+
+
+# DATASET DESCRIPTION
+
+The data used for the analysis is weather data for New Delhi, India. It is the capital of India and lies in the northern region of the country, with its neighboring states being Haryana and Uttar Pradesh. 
+
+The data is collected from Kaggle [6], but it is sourced from Wunderground website which allows us to easily download the historical weather data using their easy to use api. It is a website by a commercial company called “Weather Underground” with its base in San Francisco, U.S. The Weather Underground is a subsidiary of the multinational technology company IBM. They collect and report real-time weather data for major cities, with their data being sourced from National Weather Service (NWS) and over 250,000 personal weather stations. 
+The dataset has 20 columns and 100990 rows, and holds hourly summaries of weather from 1996 to 2017 in a csv format. The date range of the data is from 11/01/1996 to 04/24/2017. The datatypes in the dataset are datetime, character, integer and double. 
+The data contains features like datetime, weather condition, temperature, precipitation, humidity, pressure, fog, dew, hail, snow, thunder, tornado, wind, etc. 
+
+Important attributes which will be used majorly in the study will be datetime, weather condition, temperature and precipitation. The datetime holds data in YYYYMMDD-HH:MM format which will need to be converted into POSIXct format in order to be read properly in R, and the temperature is in degrees Celsius stored in numeric format. Weather conditions holds the data in character format with its categories being fog, smoke, thunderstorm, haze, clouds, mist, etc. 
+
+
+
++------------------+------------------+-----------------------------------------+
+| Attribute        | Datatype      |Description                                 |             
++==================+===============+============================================+
+| DateTime         |  Character    | Date and Time in YYYYMMDD-HH:MM format     |
++------------------+---------------+--------------------------------------------+
+| Weather Condition|  Character    |Weather conditions like fog, hail, dew, etc |           
++------------------+---------------+------------------+-------------------------+
+| dewptm           |  Integer      |dewpoint in degree celcius                  |
++------------------+---------------+------------------+-------------------------+
+| hail             |  Binary       |0 or 1 depending on presence of hail        |
++------------------+---------------+--------------------------------------------+
+| heat index       |  integer      |measure of heat                             |
++------------------+---------------+--------------------------------------------+
+| humidity         |  integer      |humidity level                              |
++------------------+---------------+--------------------------------------------+
+| precipitation    |  N/A          |Null column                                 |
++------------------+---------------+--------------------------------------------+
+| pressure         |  integer      |pressure in bar                             |
++------------------+---------------+--------------------------------------------+
+| rain             |  Boolean      |0 or 1 depending on occurence of rain       |
++------------------+---------------+--------------------------------------------+
+| temperature      |  integer      |temperaure in degree celcius                |
++------------------+---------------+--------------------------------------------+
+| thunder          |  Boolean      |0 or 1 depending on occurence of thunder    |
++------------------+---------------+--------------------------------------------+
+| tornado          |  Boolean      |0 or 1 depending on occurence of tornado    |
++------------------+---------------+--------------------------------------------+
+| snow             |  Boolean      |0 or 1 depending on occurence of snow       |
++------------------+---------------+--------------------------------------------+
+| wind direction   |  Character    | North(N) /South(S) /East(E) /West(W)       |
++------------------+---------------+--------------------------------------------+
+
+
+# METHOD
+
+The methodology starts with first converting the data into a time series model. The temperature column has specifically been converted into a time series since that column is specifically a field of interest in studying climate change.
+
+```{r, echo=FALSE}
+dataset <-read.csv("/Users/riya/Desktop/testset.csv")
+```
+
+Renaming useful columns
+```{r, echo=FALSE}
+names(dataset)[names(dataset) == "X_conds"] <- "condition"
+names(dataset)[names(dataset) == "X_hum"] <- "humidity"
+names(dataset)[names(dataset) == "X_pressurem"] <- "pressure"
+names(dataset)[names(dataset) == "X_tempm"] <- "temperature"
+
+```
+
+
+```{r, echo=FALSE, results='hide'}
+summary(dataset)
+```
+
+
+```{r, echo=FALSE}
+data1 <- dataset               # Duplicating data frame
+data1$temperature[is.na(data1$temperature)] <- median(data1$temperature, na.rm = TRUE)  # Replace NA in one column
+data1$pressure[is.na(data1$pressure)] <- median(data1$pressure, na.rm = TRUE)  # Replace NA in one column
+
+```
+
+
+```{r, echo=FALSE}
+data<- subset(data1, temperature<50)
+data<- subset(data, humidity<=100)
+```
+
+
+
+## Converting datetime column into datetime format
+
+```{r}
+data2<-data  #duplicating dataframe
+
+#as.POSIXct will convert datetime from character format to datetime format readable in R
+#format=%Y%m%d-%H:%M depending on our dataset values
+data2[['datetime_utc']] <- as.POSIXct(data2[['datetime_utc']],format = "%Y%m%d-%H:%M") 
+
+```
+
+
+## Creating time series
+
+```{r}
+#creating time series of temperature by ts() function
+#frequency=12 
+temperature.ts = ts(data2$temperature, start = c(1992, 3), end = c(2014, 11), frequency = 12)
+```
+
+
+## Time Series Plot 
+
+```{r, fig.show='hide'}
+#time series plot of temperature
+plot(temperature.ts, xlab = "Year", ylab="temperature", main="temperature over the years")
+```
+
+
+## Lag Plot
+Lag plots are then made the time series to understand the lag values of the time series at a time t against the time series itself in time t-1. Lag plots are important to understand a time series properly and it indicates if the time series is dependent on itself in time.
+
+```{r, fig.show='hide'}
+#lag plot of temperature, with maximum plotted lags
+lag.plot(temperature.ts, lags=12, do.lines=FALSE)
+```
+
+
+## Autocorrelation
+
+Autocorrelation function is then used to confirm the trend and seasonality if present in the data. The trend is observed from the graph itself, and the presence of scallops at certain intervals indicates seasonality. The autocorrelation plot will also indicate if the data has any white noise. If more than 95% of the lines in the autocorrelation plot lie outside the confidence interval, it means that the data has no white noise. 
+
+```{r,fig.show='hide'}
+#Autocorrelation function gives the autocorrelation plot with temperature time series as a parameter
+acf(temperature.ts)
+```
+
+
+## Dickey Fuller Test
+
+Augmented Dickey Fuller test(ADF Test)is also used to check for stationarity in the data. This test is an advanced version of the Dickey Fuller test used to determine if a unit root is present in the data. The Augmented Dickey Fuller test can be used to analyze data with complex and unknown orders. The result of the Dickey Fuller test gives a p-value and needs to be less than 0.05 to indicate stationarity. 
+
+```{r}
+#Test for Stationarity
+
+#adf.test(temperature.ts, alternative = "stationary")
+
+# if p value < 0.05, time series is stationary
+# if p value > 0.05, the time series is not stationary
+```
+
+# Results
+The statistical summary shows the mean temperature throughout the time period is 27 degree Celsius. The statistical summary is not that useful for time series data though, and moreover most of the other columns about weather conditions have boolean values of 0 and 1, so calculating these statistics for them is not useful.
+
+The barplot of weather conditions throws light on the maximum conditions being Foggy, followed by haze, and very little rain or drizzle.
+
+```{r, echo= FALSE}
+#barplot of weather conditions
+
+#combining drizzle + light drizzle, fog + heavy fog, Heavy rain + heavy thunderstorm and rain since they aer similar
+barplot(c(6,185,14,1527,481,10),         #combined values for each weather condition
+main = "Weather Conditions",             #title
+xlab = "conditions", 
+ylab = "Occurences",
+names.arg = c("Blowing Sand", "Clear", "Drizzle","Fog","Haze","Heavy Rain"), #names of bars
+col= "#69b3a2",                          #Setting color= green
+horiz = FALSE)
+```
+
+The time series plot for temperature shows the trend was almost similar from 1996 to 2005, after which it started rising sharply, with both maximum and minimum temperatures going up and getting almost doubled. 
+
+```{r, echo=FALSE}
+plot(temperature.ts, xlab = "Year", ylab="temperature", main="temp")
+```
+
+All the lag plots are almost aligned at the diagonals, meaning that the data is not random and there is autocorrelation in the data.
+
+```{r, echo=FALSE}
+lag.plot(temperature.ts, lags=12, do.lines=FALSE)
+```
+
+The autocorrelation function has all the lines outside the 95%confidence interval, suggesting that the data has no white noise. Also, there are slight scallops in the plot indicating seasonality. 
+
+```{r, echo=FALSE}
+#Autocorrelation on temperature time series
+acf(temperature.ts)
+```
+```{r, echo=FALSE}
+#adf_test_result
+```
+The Augmented Dickey Fuller test(ADF Test) gives p value as 0.5051, meaning that the time series is not stationary. This agrees with the insights found in the lag plot and autocorrelation plot since the data is seasonal and hence it is not stationary.
+
+
+# Conclusion
+The research focussed on analyzing meteorological data for New Delhi, India. The time series modeling was carried out to analyze the trends in weather data, with a focus on variables like weather conditions and temperature. Time series plots are very useful while working on time dependent data, and can give useful insights about patterns in the variables over time. 
+
+The analysis throws a lot of meaningful insights into the state’s weather conditions. The mean temperature being 27 degree Celsius means that it is a warm city. The bar plot shows that the weather condition in the city is mostly Fog and haze, indicating the pollution level in the city is very high. 
+
+As a result, we can witness the effects of global warming very clearly as the city’s temperatures have been seen rising at a rapid rate. Both the maximum and minimum temperature have doubled since 1996 till 2017, with a steep and linear rise each year after 2005. This is a very surprising rate for a time period of just 11 years. 
+
+The slightly scalloped data suggests that there is seasonality in the temperature at regular intervals, which means it can detect the temperature change in Delhi due to their seasons as well. The data does not have any whitenoise and hence is not random, confirming about the accuracy of the dataset in terms of it being collected from reliable and valid sources. It also suggests strong autocorrelation meaning that temperature is linearly related to the lagged version of itself.
+
+The result of this research is in agreement with the background research about Delhi weather data analysis done by Ayman Talib et. al., where they analyzed the years 1961-1990 and had stated that the maximum temperature has been rising annually along with the rainfall, and indicated warming of the city. According to their study the minimum temperatures had decreased over their research period, but my results show an increase in both minimum and maximum temperatures after 1996.My results are in sync with the results published by Surendra et. al, where minimum and maximum temperatures have increased overall, without any decline.
+
+These analysis suggest the need for a strict climate control plan to be introduced in the state to avoid making it more of a gas chamber and lessen the damage done in the city. There is a need to stop the increasing temperature curve for the city and follow the COP27 guidelines. 
+
+
+# Works Cited
+
+[1] 	Manfred Mudelsee, "Trend analysis of climate time series: A review of methods,," Earth-Science Reviews, , vol. 190, pp. 310-322, 2019. 
+
+[2] 	R. B. S. &. M. K. Shouraseni Sen Roy, "An Analysis of Local Spatial Temperature Patterns in The Delhi Metropolitan Area," Physical Geography, vol. 32, no. 2, pp. 114-138, 2013. 
+
+[3] 	A. &. S. M. &. A. M. Talib, "EVALUATION OF TRENDS IN METEOROLOGICAL DATA OF DELHI.," Sustainable development and Green Economics, vol. 2, no. 1, pp. 117-124, 2013. 
+
+[4] 	M. K. J. Surendra P. Singh1, "Assessment of Climate Change Using Spatial and Temporal Trend Analysis of Climatic Data: A Case study of Delhi, India," in 20th International Conference on Hydraulics, water Resources and Rive Engineering (HYDRO-2015), Roorkee, 2015. 
+
+[5] 	skmorgane, "Autocorrelation.R," 08 2018. [Online]. Available: https://github.com/weecology/forecasting-dynamics-course/blob/master/lectures/autocorrelation.R. [Accessed 23 11 2022].
+
+[6] 	M. Kukreja, "Delhi Weather Data," 2017. [Online]. Available: https://www.kaggle.com/datasets/mahirkukreja/delhi-weather-data. [Accessed 23 11 2022].
+
+
+
